@@ -352,29 +352,36 @@
       }
     }
   }
-  // The clue is "revealed" once the area its digits occupy is wiped clear. People stop wiping as soon as
-  // the number is readable, long before 85% of the whole glass is clean, so the keypad must not wait for that.
+  // The clue counts as "discovered" as soon as EACH digit is readable, i.e. enough of the area it occupies has
+  // been wiped clear. The rest of the fog can stay. (The mirror's own full fog fade still happens at 85%.)
   var mirrorDigits = $('mirror-digits');
-  var DIGITS_BASELINE = 288, DIGITS_CAP_H = 40, DIGITS_REVEALED_AT = 0.75;   // 75% of the digits' area clear = readable
+  var DIGITS_CAP_H = 40;            // height of a digit in mirror units (56px font)
+  var DIGIT_READABLE_AT = 0.5;      // share of one digit's area that must be clear for it to be readable
   function digitsRevealed() {
     var bb;
     try { bb = mirrorDigits.getBBox(); } catch (err) { return false; }
     if (!bb || !bb.width) return false;
-    var x0 = bb.x, x1 = bb.x + bb.width, y0 = DIGITS_BASELINE - DIGITS_CAP_H, y1 = DIGITS_BASELINE;
-    var n = 0, hit = 0;
-    for (var j = 0; j < ROWS; j++) {
-      var cy = GY0 + (j + 0.5) * CELL;
-      if (cy < y0 || cy > y1) continue;               // only cells whose centre lies on the digits
-      for (var i = 0; i < COLS; i++) {
-        var cx = GX0 + (i + 0.5) * CELL;
-        if (cx < x0 || cx > x1) continue;
-        var k = j * COLS + i;
-        if (cells[k] === 2) continue;                 // outside the glass
-        n++;
-        if (cells[k] === 1) hit++;
+    var base = parseFloat(mirrorDigits.getAttribute('y')) || 0;       // text baseline
+    var y0 = base - DIGITS_CAP_H, y1 = base;
+    var count = CONFIG.MIRROR_DIGITS.length, slot = bb.width / count;
+    for (var d = 0; d < count; d++) {                                 // every digit must be readable
+      var x0 = bb.x + d * slot, x1 = x0 + slot;
+      var n = 0, hit = 0;
+      for (var j = 0; j < ROWS; j++) {
+        var cy = GY0 + (j + 0.5) * CELL;
+        if (cy < y0 || cy > y1) continue;             // only cells whose centre lies on the digits
+        for (var i = 0; i < COLS; i++) {
+          var cx = GX0 + (i + 0.5) * CELL;
+          if (cx < x0 || cx > x1) continue;
+          var k = j * COLS + i;
+          if (cells[k] === 2) continue;               // outside the glass
+          n++;
+          if (cells[k] === 1) hit++;
+        }
       }
+      if (!n || hit / n < DIGIT_READABLE_AT) return false;
     }
-    return n > 0 && hit / n >= DIGITS_REVEALED_AT;
+    return true;
   }
   function unlockKeypad() {
     if (step !== 'mirror') return;
