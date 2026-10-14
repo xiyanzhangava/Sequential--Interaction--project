@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mystery Room</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main class="app">
+
+  <!-- The whole room is one SVG scene. Study artwork keeps its original coordinates inside
+       transformed groups (positions are set below and by script.js). -->
+  <svg id="room" viewBox="0 0 1100 720" preserveAspectRatio="xMidYMid meet" role="group" aria-label="Mystery room" fill="none">
+    <defs>
+      <!-- envelope study: soft focus while the paper emerges, and a clip so it never draws below the envelope -->
+      <filter id="fuzz" filterUnits="userSpaceOnUse" x="80" y="100" width="240" height="250">
+        <feGaussianBlur id="fuzz-blur" stdDeviation="2"/>
+      </filter>
+      <clipPath id="paper-clip"><rect x="60" y="-40" width="280" height="370"/></clipPath>
+
+      <!-- mirror study: glass clip + reveal mask -->
+      <clipPath id="glass-shape-clip"><ellipse cx="200" cy="250" rx="98" ry="168"/></clipPath>
+      <mask id="fog-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="500">
+        <rect x="0" y="0" width="400" height="500" fill="#ffffff"/>
+        <path id="wipe-path" d="" fill="none" stroke="#000000" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/>
+      </mask>
+    </defs>
+
+    <!-- ===== Room: wall, floor, furniture (not interactive) ===== -->
+    <g id="room-static" aria-hidden="true">
+      <rect x="0" y="0" width="1100" height="530" fill="#E4E4E4"/>
+      <rect x="0" y="530" width="1100" height="190" fill="#CFCFCF"/>
+      <rect x="0" y="518" width="1100" height="12" fill="#BFBFBF" stroke="#4D4D4D" stroke-width="2"/>
+      <line x1="0" y1="530" x2="1100" y2="530" stroke="#4D4D4D" stroke-width="3"/>
+
+      <!-- framed picture on the wall -->
+      <rect x="360" y="120" width="120" height="90" fill="#F2F2F2" stroke="#4D4D4D" stroke-width="4"/>
+      <rect x="374" y="134" width="92" height="62" fill="#BFBFBF" stroke="#7F7F7F" stroke-width="2"/>
+
+      <!-- desk -->
+      <rect x="110" y="470" width="360" height="58" fill="#B8B8B8"/>
+      <rect x="92" y="418" width="396" height="22" fill="#8C8C8C" stroke="#000000" stroke-width="4"/>
+      <rect x="104" y="440" width="372" height="30" fill="#A6A6A6" stroke="#000000" stroke-width="4"/>
+      <rect x="108" y="470" width="18" height="170" fill="#8C8C8C" stroke="#000000" stroke-width="4"/>
+      <rect x="454" y="470" width="18" height="170" fill="#8C8C8C" stroke="#000000" stroke-width="4"/>
+
+      <!-- desk lamp -->
+      <rect x="116" y="410" width="44" height="8" fill="#595959" stroke="#000000" stroke-width="3"/>
+      <line x1="138" y1="410" x2="138" y2="372" stroke="#000000" stroke-width="5" stroke-linecap="square"/>
+      <polygon points="116,372 160,372 150,346 126,346" fill="#D9D9D9" stroke="#000000" stroke-width="3"/>
+
+      <!-- books -->
+      <rect x="402" y="394" width="64" height="24" fill="#808080" stroke="#000000" stroke-width="3"/>
+      <rect x="408" y="372" width="52" height="22" fill="#BFBFBF" stroke="#000000" stroke-width="3"/>
+    </g>
+
+    <!-- ===== Door (Unlock the Door study artwork, original coordinates) ===== -->
+    <g id="obj-door" transform="translate(560 50) scale(0.9) translate(-54 -34)">
+      <rect x="60" y="40" width="360" height="520" fill="#4D4D4D" stroke="#000000" stroke-width="6"/>
+      <rect x="84" y="64" width="312" height="496" fill="#1A1A1A"/>
+      <g id="leaf">
+        <rect x="84" y="64" width="312" height="496" fill="#8C8C8C" stroke="#000000" stroke-width="6"/>
+        <rect x="84" y="64" width="22" height="496" fill="#595959" stroke="#000000" stroke-width="4"/>
+        <rect x="130" y="100" width="240" height="190" fill="#A6A6A6" stroke="#000000" stroke-width="4"/>
+        <rect x="130" y="330" width="240" height="190" fill="#A6A6A6" stroke="#000000" stroke-width="4"/>
+        <rect x="344" y="300" width="36" height="70" fill="#D9D9D9" stroke="#000000" stroke-width="4"/>
+        <rect id="lever" x="316" y="326" width="64" height="16" fill="#404040" stroke="#000000" stroke-width="4"/>
+      </g>
+      <rect x="76" y="120" width="16" height="50" fill="#262626" stroke="#000000" stroke-width="3"/>
+      <rect x="76" y="450" width="16" height="50" fill="#262626" stroke="#000000" stroke-width="3"/>
+    </g>
+
+    <!-- ===== Mirror (Reveal the Mirror Clue study; clue is now the 2-digit code) ===== -->
+    <g id="obj-mirror" class="locked" transform="translate(90 100) scale(0.6)">
+      <ellipse class="ring" cx="200" cy="250" rx="120" ry="190"/>
+      <g id="mirror" role="img" aria-label="Mirror">
+        <ellipse class="frame" cx="200" cy="250" rx="120" ry="190"/>
+        <g id="hidden-clue" clip-path="url(#glass-shape-clip)">
+          <ellipse class="glass-back" cx="200" cy="250" rx="100" ry="170"/>
+          <text id="mirror-digits" class="clue-digits" x="200" y="288" text-anchor="middle"></text>
+        </g>
+        <g id="fog" mask="url(#fog-mask)">
+          <ellipse id="mirror-surface" class="surface" cx="200" cy="250" rx="100" ry="170"/>
+          <g class="swipe-lines">
+            <line x1="150" y1="225" x2="250" y2="225"/>
+            <line x1="162" y1="250" x2="238" y2="250"/>
+            <line x1="150" y1="275" x2="250" y2="275"/>
+          </g>
+        </g>
+      </g>
+    </g>
+
+    <!-- ===== Keypad (Unlock the Door study artwork). Outer group positions it; inner group shakes. ===== -->
+    <g id="obj-keypad" class="locked" transform="translate(915 250) scale(0.72) translate(-497 -127)">
+      <g id="keypad" role="group" aria-label="Keypad">
+        <rect x="500" y="130" width="220" height="340" fill="#BFBFBF" stroke="#000000" stroke-width="6"/>
+        <rect x="512" y="142" width="196" height="316" fill="none" stroke="#7F7F7F" stroke-width="3"/>
+
+        <rect id="screen" x="530" y="164" width="120" height="44" stroke="#000000" stroke-width="4"/>
+        <g id="slots"></g>
+        <path id="icon-ok" class="icon" d="M576 187 L586 197 L604 175"/>
+        <path id="icon-err" class="icon" d="M578 175 L602 197 M602 175 L578 197"/>
+
+        <g id="lock-indicator">
+          <rect x="664" y="164" width="28" height="44" fill="#F2F2F2" stroke="#000000" stroke-width="3"/>
+          <path id="shackle" d="M672 182 V177 A6 6 0 0 1 684 177 V182" stroke="#000000" stroke-width="3" fill="none"/>
+          <rect id="lockbody" x="670" y="182" width="16" height="12" fill="#000000"/>
+        </g>
+
+        <g id="keys"></g>
+      </g>
+    </g>
+
+    <!-- ===== Envelope (Reveal the Clue study). Back half, then the paper layer, then the front half. ===== -->
+    <g id="env-back">
+      <polygon id="flap-open" points="60,140 340,140 200,140" stroke-width="4" stroke-linejoin="round" visibility="hidden"/>
+    </g>
+
+    <!-- The ONE piece of paper. It starts inside the envelope and is only ever moved, never copied. -->
+    <g id="paper-wrap" clip-path="url(#paper-clip)">
+      <g id="paper" visibility="hidden">
+        <g id="paper-inner">
+          <rect id="paper-face" class="line" x="120" y="160" width="160" height="150" rx="6" stroke-width="3"/>
+          <rect id="paper-bar-1" x="140" y="194" width="80" height="8" rx="4" opacity="0"/>
+          <rect id="paper-bar-2" x="140" y="214" width="120" height="8" rx="4" opacity="0"/>
+          <text id="paper-digits" class="clue-digits" x="200" y="282" text-anchor="middle" opacity="0"></text>
+        </g>
+      </g>
+    </g>
+
+    <g id="env-front">
+      <g id="envelope" data-state="closed" role="button" tabindex="0" aria-label="Envelope">
+        <!-- generous invisible hit area so the small envelope is easy to tap -->
+        <rect x="40" y="120" width="320" height="230" fill="transparent" stroke="none"/>
+        <rect id="envelope-body" class="line" x="60" y="140" width="280" height="190" rx="8" stroke-width="4" stroke-linejoin="round"/>
+        <path id="fold-left" d="M64 326 L190 232 L190 244 L70 330 Z" stroke-width="2" stroke-linejoin="round"/>
+        <path id="fold-right" d="M336 326 L210 232 L210 244 L330 330 Z" stroke-width="2" stroke-linejoin="round"/>
+        <polygon id="flap-closed" class="line" points="60,140 340,140 200,250" stroke-width="4" stroke-linejoin="round"/>
+      </g>
+    </g>
+
+    <!-- ===== Paper close-up: dim backdrop, then the paper layer on top ===== -->
+    <rect id="backdrop" x="0" y="0" width="1100" height="720" fill="#000000"/>
+    <g id="paper-top">
+      <text id="paper-hint" x="550" y="520" text-anchor="middle">Click anywhere to put it back on the desk</text>
+    </g>
+  </svg>
+
+  <div class="bar">
+    <ol id="progress" aria-label="Progress">
+      <li data-step="envelope" class="current">Envelope</li>
+      <li data-step="mirror">Mirror</li>
+      <li data-step="door">Door</li>
+    </ol>
+    <button id="reset" type="button">Reset</button>
+  </div>
+
+  <div id="status" class="sr" role="status" aria-live="polite"></div>
+</main>
+
+<script src="script.js"></script>
+</body>
+</html>
