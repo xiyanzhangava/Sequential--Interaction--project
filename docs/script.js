@@ -352,6 +352,36 @@
       }
     }
   }
+  // The clue is "revealed" once the area its digits occupy is wiped clear. People stop wiping as soon as
+  // the number is readable, long before 85% of the whole glass is clean, so the keypad must not wait for that.
+  var mirrorDigits = $('mirror-digits');
+  var DIGITS_BASELINE = 288, DIGITS_CAP_H = 40, DIGITS_REVEALED_AT = 0.75;   // 75% of the digits' area clear = readable
+  function digitsRevealed() {
+    var bb;
+    try { bb = mirrorDigits.getBBox(); } catch (err) { return false; }
+    if (!bb || !bb.width) return false;
+    var x0 = bb.x, x1 = bb.x + bb.width, y0 = DIGITS_BASELINE - DIGITS_CAP_H, y1 = DIGITS_BASELINE;
+    var n = 0, hit = 0;
+    for (var j = 0; j < ROWS; j++) {
+      var cy = GY0 + (j + 0.5) * CELL;
+      if (cy < y0 || cy > y1) continue;               // only cells whose centre lies on the digits
+      for (var i = 0; i < COLS; i++) {
+        var cx = GX0 + (i + 0.5) * CELL;
+        if (cx < x0 || cx > x1) continue;
+        var k = j * COLS + i;
+        if (cells[k] === 2) continue;                 // outside the glass
+        n++;
+        if (cells[k] === 1) hit++;
+      }
+    }
+    return n > 0 && hit / n >= DIGITS_REVEALED_AT;
+  }
+  function unlockKeypad() {
+    if (step !== 'mirror') return;
+    setStep('door');                // both clues are now visible: the keypad becomes available
+    say('Mirror digits revealed. The keypad is ready.');
+  }
+
   function mirrorPress() {
     clearTimeout(pressTimer);
     mirror.classList.add('pressed');
@@ -368,15 +398,18 @@
     markCoverage(drag.last, pt);
     drag.last = pt;
     objMirror.classList.add('touched');
-    if (total && covered / total >= DONE_AT) finishMirror();
+    if (total && covered / total >= DONE_AT) finishMirror();       // original study: fog fades at 85%
+    else if (step === 'mirror' && digitsRevealed()) unlockKeypad();  // keypad does not wait for the fog to fade
   }
   function finishMirror() {
     mirrorDone = true;
     endDrag();
     mirror.classList.add('done');
     mirror.setAttribute('aria-label', 'Mirror, two digits revealed: ' + CONFIG.MIRROR_DIGITS);
-    setStep('door');                // the keypad unlocks only now
-    say('Mirror cleared. Two digits are visible.');
+    if (step === 'mirror') {
+      setStep('door');
+      say('Mirror cleared. Two digits are visible.');
+    }
   }
   function endDrag() {
     if (drag) { try { mirror.releasePointerCapture(drag.id); } catch (err) {} }
@@ -385,7 +418,8 @@
   }
 
   mirror.addEventListener('pointerdown', function (e) {
-    if (step !== 'mirror' || mirrorDone || drag) return;
+    // wiping stays possible after the keypad unlocks, until the fog has fully faded
+    if ((step !== 'mirror' && step !== 'door') || mirrorDone || drag) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;   // left button only
     e.preventDefault();
     var pt = toMirror(e);
@@ -602,11 +636,20 @@
     var digit = el.getAttribute('data-k');
     if (digit) input(digit);
   }
+  var lastKeyPointer = -1000;
   keysG.addEventListener('pointerdown', function (e) {
     var el = e.target.closest ? e.target.closest('.key') : null;
     if (!el) return;
     e.preventDefault();
+    lastKeyPointer = performance.now();
     pressKey(el);
+  });
+  // Fallback for activation without a pointerdown (assistive tech, synthetic clicks, browsers that
+  // skip pointer events). Ignored when the pointerdown already handled the same tap.
+  keysG.addEventListener('click', function (e) {
+    if (performance.now() - lastKeyPointer < 700) return;
+    var el = e.target.closest ? e.target.closest('.key') : null;
+    if (el) pressKey(el);
   });
   keysG.addEventListener('keydown', function (e) {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('key')) {
